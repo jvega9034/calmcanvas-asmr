@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://calmcanvas.com/sitemap.xml
+
+# Block access to any future admin or API paths
+Disallow: /admin/
+Disallow: /api/
