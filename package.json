@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "CalmCanvas ASMR — backend API with YouTube proxy and Redis caching",
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   },
   "dependencies": {
     "@upstash/redis": "^1.28.0"
