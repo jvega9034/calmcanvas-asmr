@@ -1725,19 +1725,11 @@ document.getElementById('legalOverlay').addEventListener('click', e => {
 });
 </script>
 
-<!-- Firebase SDK -->
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import {
-  getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
-  signInWithEmailAndPassword, signOut, updateProfile,
-  sendPasswordResetEmail, GoogleAuthProvider, GithubAuthProvider,
-  signInWithPopup
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import {
-  getFirestore, doc, setDoc, getDoc, updateDoc, collection, getDocs
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-
+<!-- Firebase SDK (compat version — works with onclick handlers) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyBfLLjafJHNp4mZV9tQgv3MP6kO35nP1sc",
   authDomain: "calmcanvas-76527.firebaseapp.com",
@@ -1748,13 +1740,11 @@ const firebaseConfig = {
   measurementId: "G-3WX1P7JK5C"
 };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const googleProvider = new GoogleAuthProvider();
-const githubProvider = new GithubAuthProvider();
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
 
-// ── Helpers ────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────
 function setAuthLoading(id, loading) {
   const btn = document.getElementById(id);
   if (!btn) return;
@@ -1776,145 +1766,165 @@ function clearAuthMessages() {
   document.getElementById('authError').classList.remove('show');
   document.getElementById('authSuccess').classList.remove('show');
 }
+function friendlyError(code) {
+  const map = {
+    'auth/user-not-found':       'No account found with that email.',
+    'auth/wrong-password':       'Incorrect password. Try again.',
+    'auth/invalid-credential':   'Incorrect email or password.',
+    'auth/email-already-in-use': 'An account with this email already exists.',
+    'auth/weak-password':        'Password should be at least 6 characters.',
+    'auth/invalid-email':        'Please enter a valid email address.',
+    'auth/too-many-requests':    'Too many attempts. Please try again later.',
+    'auth/popup-blocked':        'Popup was blocked. Please allow popups for this site.',
+    'auth/account-exists-with-different-credential': 'An account already exists with this email using a different sign-in method.',
+  };
+  return map[code] || 'Something went wrong. Please try again.';
+}
 
-// ── Auth modal open/close ──────────────────────────────────
-window.openAuth = function(tab = 'login') {
+// ── Auth modal ────────────────────────────────────────────
+function openAuth(tab = 'login') {
   clearAuthMessages();
   switchTab(tab);
   document.getElementById('authOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
-};
-window.closeAuth = function() {
+}
+function closeAuth() {
   document.getElementById('authOverlay').classList.remove('open');
   document.body.style.overflow = '';
-};
-window.switchTab = function(tab) {
-  document.getElementById('formLogin').style.display = tab === 'login' ? 'block' : 'none';
+}
+function switchTab(tab) {
+  document.getElementById('formLogin').style.display  = tab === 'login'  ? 'block' : 'none';
   document.getElementById('formSignup').style.display = tab === 'signup' ? 'block' : 'none';
-  document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+  document.getElementById('tabLogin').classList.toggle('active',  tab === 'login');
   document.getElementById('tabSignup').classList.toggle('active', tab === 'signup');
   clearAuthMessages();
-};
+}
 
-// ── Email/Password Login ───────────────────────────────────
-window.doLogin = async function() {
+// ── Email/Password Login ──────────────────────────────────
+async function doLogin() {
   const email = document.getElementById('loginEmail').value.trim();
   const pass  = document.getElementById('loginPassword').value;
   if (!email || !pass) { showAuthError('Please fill in all fields.'); return; }
   clearAuthMessages(); setAuthLoading('loginBtn', true);
   try {
-    await signInWithEmailAndPassword(auth, email, pass);
-    window.closeAuth();
-    window.showToast('👋 Welcome back!');
+    await auth.signInWithEmailAndPassword(email, pass);
+    closeAuth();
+    showToast('👋 Welcome back!');
   } catch(e) {
     showAuthError(friendlyError(e.code));
   } finally { setAuthLoading('loginBtn', false); }
-};
+}
 
-// ── Email/Password Signup ──────────────────────────────────
-window.doSignup = async function() {
+// ── Email/Password Signup ─────────────────────────────────
+async function doSignup() {
   const name    = document.getElementById('signupName').value.trim();
   const email   = document.getElementById('signupEmail').value.trim();
   const pass    = document.getElementById('signupPassword').value;
   const confirm = document.getElementById('signupConfirm').value;
   if (!name || !email || !pass) { showAuthError('Please fill in all fields.'); return; }
   if (pass !== confirm) { showAuthError('Passwords do not match.'); return; }
-  if (pass.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
+  if (pass.length < 6)  { showAuthError('Password must be at least 6 characters.'); return; }
   clearAuthMessages(); setAuthLoading('signupBtn', true);
   try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
-    await updateProfile(cred.user, { displayName: name });
-    await setDoc(doc(db, 'users', cred.user.uid), {
+    const cred = await auth.createUserWithEmailAndPassword(email, pass);
+    await cred.user.updateProfile({ displayName: name });
+    await db.collection('users').doc(cred.user.uid).set({
       displayName: name, email, createdAt: Date.now(), savedVideos: []
     });
-    window.closeAuth();
-    window.showToast('🎉 Account created! Welcome to CalmCanvas.');
+    closeAuth();
+    showToast('🎉 Account created! Welcome to CalmCanvas.');
   } catch(e) {
     showAuthError(friendlyError(e.code));
   } finally { setAuthLoading('signupBtn', false); }
-};
+}
 
-// ── Google ─────────────────────────────────────────────────
-window.doGoogle = async function() {
+// ── Google ────────────────────────────────────────────────
+async function doGoogle() {
   try {
-    const cred = await signInWithPopup(auth, googleProvider);
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const cred = await auth.signInWithPopup(provider);
     const u = cred.user;
-    const ref = doc(db, 'users', u.uid);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      await setDoc(ref, { displayName: u.displayName, email: u.email, createdAt: Date.now(), savedVideos: [] });
-    }
-    window.closeAuth();
-    window.showToast('👋 Welcome, ' + (u.displayName || 'friend') + '!');
+    const ref = db.collection('users').doc(u.uid);
+    const snap = await ref.get();
+    if (!snap.exists) await ref.set({ displayName: u.displayName, email: u.email, createdAt: Date.now(), savedVideos: [] });
+    closeAuth();
+    showToast('👋 Welcome, ' + (u.displayName || 'friend') + '!');
   } catch(e) {
     if (e.code !== 'auth/popup-closed-by-user') showAuthError(friendlyError(e.code));
   }
-};
+}
 
-// ── GitHub ─────────────────────────────────────────────────
-window.doGithub = async function() {
+// ── GitHub ────────────────────────────────────────────────
+async function doGithub() {
   try {
-    const cred = await signInWithPopup(auth, githubProvider);
+    const provider = new firebase.auth.GithubAuthProvider();
+    const cred = await auth.signInWithPopup(provider);
     const u = cred.user;
-    const ref = doc(db, 'users', u.uid);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      await setDoc(ref, { displayName: u.displayName || u.email, email: u.email, createdAt: Date.now(), savedVideos: [] });
-    }
-    window.closeAuth();
-    window.showToast('👋 Welcome, ' + (u.displayName || 'friend') + '!');
+    const ref = db.collection('users').doc(u.uid);
+    const snap = await ref.get();
+    if (!snap.exists) await ref.set({ displayName: u.displayName || u.email, email: u.email, createdAt: Date.now(), savedVideos: [] });
+    closeAuth();
+    showToast('👋 Welcome, ' + (u.displayName || 'friend') + '!');
   } catch(e) {
     if (e.code !== 'auth/popup-closed-by-user') showAuthError(friendlyError(e.code));
   }
-};
+}
 
-// ── Forgot password ────────────────────────────────────────
-window.forgotPassword = async function() {
+// ── Forgot password ───────────────────────────────────────
+async function forgotPassword() {
   const email = document.getElementById('loginEmail').value.trim();
   if (!email) { showAuthError('Enter your email above first.'); return; }
   try {
-    await sendPasswordResetEmail(auth, email);
+    await auth.sendPasswordResetEmail(email);
     showAuthSuccess('Reset email sent! Check your inbox.');
   } catch(e) { showAuthError(friendlyError(e.code)); }
-};
+}
 
-// ── Sign out ───────────────────────────────────────────────
-window.doSignOut = async function() {
-  await signOut(auth);
-  window.showToast('👋 Signed out. See you soon!');
+// ── Sign out ──────────────────────────────────────────────
+async function doSignOut() {
+  await auth.signOut();
+  showToast('👋 Signed out. See you soon!');
   closeProfileMenu();
-};
+}
 
-// ── Profile menu ───────────────────────────────────────────
-window.toggleProfileMenu = function() {
+// ── Profile menu ──────────────────────────────────────────
+function toggleProfileMenu() {
   document.getElementById('profileMenu').classList.toggle('open');
-};
-window.closeProfileMenu = function() {
+}
+function closeProfileMenu() {
   const m = document.getElementById('profileMenu');
   if (m) m.classList.remove('open');
-};
+}
 document.addEventListener('click', e => {
   const wrap = document.getElementById('profileWrap');
   if (wrap && !wrap.contains(e.target)) closeProfileMenu();
 });
 
-// ── Auth state listener ────────────────────────────────────
-onAuthStateChanged(auth, async (user) => {
+// ── Sync saved videos to Firestore ────────────────────────
+window._syncFavsToCloud = async function() {
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    await db.collection('users').doc(user.uid).update({ savedVideos: window.favorites || [] });
+  } catch(e) { /* offline or doc doesn't exist yet */ }
+};
+
+// ── Auth state listener ───────────────────────────────────
+auth.onAuthStateChanged(async (user) => {
   const area = document.getElementById('authNavArea');
   if (user) {
-    // Load saved videos from Firestore and merge into local
+    // Load saved videos from Firestore
     try {
-      const snap = await getDoc(doc(db, 'users', user.uid));
-      if (snap.exists()) {
+      const snap = await db.collection('users').doc(user.uid).get();
+      if (snap.exists) {
         const data = snap.data();
         if (data.savedVideos && data.savedVideos.length) {
-          // Merge: cloud takes precedence
           const merged = [...data.savedVideos];
-          const localIds = new Set(merged.map(v => v.id));
-          (window._localFavs || []).forEach(v => { if (!localIds.has(v.id)) merged.push(v); });
-          window.favorites = merged;
+          const cloudIds = new Set(merged.map(v => v.id));
+          (window._localFavs || []).forEach(v => { if (!cloudIds.has(v.id)) merged.push(v); });
           favorites = merged;
-          window.saveFavs();
+          window.favorites = favorites;
+          saveFavs();
         }
       }
     } catch(e) { /* offline */ }
@@ -1924,9 +1934,7 @@ onAuthStateChanged(auth, async (user) => {
       <div class="nav-profile-wrap" id="profileWrap">
         <div class="auth-user-btn" onclick="toggleProfileMenu()">
           <div class="auth-avatar" id="navAvatar">
-            ${user.photoURL
-              ? `<img src="${user.photoURL}" alt="">`
-              : initials}
+            ${user.photoURL ? `<img src="${user.photoURL}" alt="">` : initials}
           </div>
           <span class="auth-display-name">${user.displayName || user.email.split('@')[0]}</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -1938,7 +1946,7 @@ onAuthStateChanged(auth, async (user) => {
           </div>
           <button class="profile-menu-item" onclick="openFavPanel();closeProfileMenu()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-            Saved Videos <span style="margin-left:auto;font-size:.72rem;background:var(--accent);color:#0d0f14;border-radius:50px;padding:0 .45rem" id="menuFavCount">${window.favorites ? window.favorites.length : 0}</span>
+            Saved Videos <span style="margin-left:auto;font-size:.72rem;background:var(--accent);color:#0d0f14;border-radius:50px;padding:0 .45rem">${favorites ? favorites.length : 0}</span>
           </button>
           <div class="profile-menu-divider"></div>
           <button class="profile-menu-item danger" onclick="doSignOut()">
@@ -1955,41 +1963,19 @@ onAuthStateChanged(auth, async (user) => {
   if (window.updateFavCount) window.updateFavCount();
 });
 
-// ── Sync saved videos to Firestore ────────────────────────
-window._syncFavsToCloud = async function() {
-  const user = auth.currentUser;
-  if (!user) return;
-  try {
-    await updateDoc(doc(db, 'users', user.uid), { savedVideos: window.favorites || [] });
-  } catch(e) { /* offline */ }
-};
-
-// ── Friendly error messages ────────────────────────────────
-function friendlyError(code) {
-  const map = {
-    'auth/user-not-found':       'No account found with that email.',
-    'auth/wrong-password':       'Incorrect password. Try again.',
-    'auth/invalid-credential':   'Incorrect email or password.',
-    'auth/email-already-in-use': 'An account with this email already exists.',
-    'auth/weak-password':        'Password should be at least 6 characters.',
-    'auth/invalid-email':        'Please enter a valid email address.',
-    'auth/too-many-requests':    'Too many attempts. Please try again later.',
-    'auth/popup-blocked':        'Popup was blocked. Please allow popups for this site.',
-    'auth/account-exists-with-different-credential': 'An account already exists with this email using a different sign-in method.',
-  };
-  return map[code] || 'Something went wrong. Please try again.';
-}
+// ── Enter key support ─────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    if (document.getElementById('formLogin').style.display !== 'none' &&
+        document.getElementById('authOverlay').classList.contains('open')) doLogin();
+    else if (document.getElementById('formSignup').style.display !== 'none' &&
+        document.getElementById('authOverlay').classList.contains('open')) doSignup();
+  }
+});
 
 // Close auth overlay on backdrop click
 document.getElementById('authOverlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('authOverlay')) window.closeAuth();
-});
-// Enter key support in auth forms
-['loginEmail','loginPassword'].forEach(id => {
-  document.getElementById(id)?.addEventListener('keydown', e => { if(e.key==='Enter') window.doLogin(); });
-});
-['signupName','signupEmail','signupPassword','signupConfirm'].forEach(id => {
-  document.getElementById(id)?.addEventListener('keydown', e => { if(e.key==='Enter') window.doSignup(); });
+  if (e.target === document.getElementById('authOverlay')) closeAuth();
 });
 </script>
 </body>
