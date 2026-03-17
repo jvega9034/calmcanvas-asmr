@@ -479,6 +479,25 @@
   .legal-body ul { padding-left:1.25rem; margin-bottom:.75rem; }
   .legal-body ul li { margin-bottom:.35rem; }
   .legal-body a { color:var(--accent); }
+  /* ── Mini Player (pip) ── */
+  .mini-player {
+    position:fixed; bottom:1.5rem; right:1.5rem; z-index:250;
+    width:300px; background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; overflow:hidden; box-shadow:0 8px 40px rgba(0,0,0,.6);
+    display:none; flex-direction:column;
+    animation:miniIn .3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .mini-player.visible { display:flex; }
+  @keyframes miniIn { from{transform:translateY(20px) scale(.95);opacity:0} to{transform:translateY(0) scale(1);opacity:1} }
+  .mini-player-video { position:relative; width:100%; aspect-ratio:16/9; background:#000; }
+  .mini-player-video iframe { width:100%; height:100%; border:none; display:block; }
+  .mini-player-bar { display:flex; align-items:center; gap:.5rem; padding:.55rem .75rem; border-top:1px solid var(--border); }
+  .mini-player-title { flex:1; font-size:.74rem; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mini-player-btn { background:none; border:none; color:var(--text-dim); cursor:pointer; padding:.25rem; border-radius:6px; display:flex; align-items:center; justify-content:center; transition:color .15s, background .15s; flex-shrink:0; }
+  .mini-player-btn:hover { color:var(--text); background:var(--surface2); }
+  .mini-player-btn svg { width:15px; height:15px; }
+  .mini-player-expand { color:var(--accent); }
+  .mini-player-expand:hover { color:var(--accent2); }
 </style>
 </head>
 <body>
@@ -549,7 +568,7 @@
     <div class="sidebar-title">🎵 Now Playing</div>
     <div class="ambient-player">
       <div class="ambient-now" id="ambientStatus">● Loading…</div>
-      <div class="ambient-thumb" id="ambientThumb" style="width:100%;aspect-ratio:16/9;border-radius:8px;overflow:hidden;margin-bottom:.75rem;background:var(--border);position:relative;cursor:pointer;" onclick="cycleAmbientTrack()">
+      <div class="ambient-thumb" id="ambientThumb" style="width:100%;aspect-ratio:16/9;border-radius:8px;overflow:hidden;margin-bottom:.75rem;background:var(--border);position:relative;cursor:pointer;" onclick="miniPlayerVideo ? expandMiniPlayer() : cycleAmbientTrack()">
         <img id="ambientThumbImg" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .4s;">
         <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);">
           <div id="ambientPlayIcon" style="width:40px;height:40px;background:rgba(126,184,164,.85);border-radius:50%;display:flex;align-items:center;justify-content:center;">
@@ -620,6 +639,27 @@
       </div>
       <div class="modal-desc" id="modalDesc"></div>
     </div>
+  </div>
+</div>
+
+<!-- Mini Player (pip) -->
+<div class="mini-player" id="miniPlayer">
+  <div class="mini-player-video">
+    <iframe id="miniIframe" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+  </div>
+  <div class="mini-player-bar">
+    <span class="mini-player-title" id="miniTitle">Now Playing</span>
+    <button class="mini-player-btn mini-player-expand" onclick="expandMiniPlayer()" title="Expand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+        <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+      </svg>
+    </button>
+    <button class="mini-player-btn" onclick="closeMiniPlayer()" title="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
   </div>
 </div>
 
@@ -950,9 +990,72 @@ async function loadTrending() {
   }
 }
 
+// ── Mini Player ───────────────────────────────────────────
+let miniPlayerVideo = null; // currently playing video object
+
+function showMiniPlayer(v) {
+  miniPlayerVideo = v;
+  const iframe = document.getElementById('miniIframe');
+  // Only reload if it's a different video
+  if (iframe.dataset.videoId !== v.id) {
+    iframe.src = `https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0`;
+    iframe.dataset.videoId = v.id;
+  }
+  document.getElementById('miniTitle').textContent = v.title || 'Now Playing';
+  document.getElementById('miniPlayer').classList.add('visible');
+}
+
+function closeMiniPlayer() {
+  document.getElementById('miniIframe').src = '';
+  document.getElementById('miniIframe').dataset.videoId = '';
+  document.getElementById('miniPlayer').classList.remove('visible');
+  miniPlayerVideo = null;
+}
+
+function expandMiniPlayer() {
+  if (!miniPlayerVideo) return;
+  // Move video back into the full modal without reloading the iframe
+  const miniIframe = document.getElementById('miniIframe');
+  const modalIframe = document.getElementById('modalIframe');
+  modalIframe.src = miniIframe.src;
+  modalIframe.dataset.videoId = miniIframe.dataset.videoId;
+  document.getElementById('miniPlayer').classList.remove('visible');
+  // Populate modal info
+  const v = miniPlayerVideo;
+  document.getElementById('modalTitle').textContent = v.title;
+  document.getElementById('modalMeta').innerHTML = `
+    <span>${v.channel}</span>
+    <span>${v.views} views</span>
+    ${v.duration ? `<span>${v.duration}</span>` : ''}
+    <span>${timeAgo(v.publishedAt)}</span>`;
+  document.getElementById('modalDesc').textContent = v.description || 'No description available.';
+  document.getElementById('ytLink').href = `https://www.youtube.com/watch?v=${v.id}`;
+  currentVideo = v;
+  currentVideoId = v.id;
+  currentLiked = false;
+  document.getElementById('likeBtn').classList.remove('liked');
+  updateSaveBtn();
+  document.getElementById('modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
 function openModal(v) {
   currentVideo = v;
   currentVideoId = v.id;
+
+  // If mini player is showing the same video, just expand it
+  if (miniPlayerVideo && miniPlayerVideo.id === v.id) {
+    expandMiniPlayer();
+    return;
+  }
+
+  // Stop mini player if a different video is opening in full
+  const miniIframe = document.getElementById('miniIframe');
+  miniIframe.src = '';
+  miniIframe.dataset.videoId = '';
+  document.getElementById('miniPlayer').classList.remove('visible');
+
+  // Load into main modal
   document.getElementById('modalIframe').src = `https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0`;
   document.getElementById('modalTitle').textContent = v.title;
   document.getElementById('modalMeta').innerHTML = `
@@ -971,9 +1074,25 @@ function openModal(v) {
 window.openModal = openModal;
 
 function closeModal() {
-  document.getElementById('modalIframe').src = '';
+  const modalIframe = document.getElementById('modalIframe');
+  const videoId = currentVideoId;
+
+  // Close the modal overlay
   document.getElementById('modal').classList.remove('open');
   document.body.style.overflow = '';
+
+  // Hand off to mini player so video keeps playing
+  if (currentVideo && videoId) {
+    const miniIframe = document.getElementById('miniIframe');
+    miniIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+    miniIframe.dataset.videoId = videoId;
+    document.getElementById('miniTitle').textContent = currentVideo.title || 'Now Playing';
+    document.getElementById('miniPlayer').classList.add('visible');
+    miniPlayerVideo = currentVideo;
+  }
+
+  // Clear main modal iframe to stop its audio
+  modalIframe.src = '';
 }
 window.closeModal = closeModal;
 
@@ -1269,6 +1388,7 @@ function startSleepTimer() {
       fade.style.opacity = 1;
       fade.style.pointerEvents = 'all';
       document.getElementById('modalIframe').src = '';
+      closeMiniPlayer();
       updateNavBtn(0);
       closeSleepTimer();
       showToast('😴 Sweet dreams! Timer ended.');
