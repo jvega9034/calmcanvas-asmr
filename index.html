@@ -567,21 +567,11 @@
   <div class="sidebar">
     <div class="sidebar-title">🎵 Now Playing</div>
     <div class="ambient-player">
-      <div class="ambient-now" id="ambientStatus">● Loading…</div>
-      <div class="ambient-thumb" id="ambientThumb" style="width:100%;aspect-ratio:16/9;border-radius:8px;overflow:hidden;margin-bottom:.75rem;background:var(--border);position:relative;cursor:pointer;" onclick="miniPlayerVideo ? expandMiniPlayer() : cycleAmbientTrack()">
-        <img id="ambientThumbImg" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .4s;">
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);">
-          <div id="ambientPlayIcon" style="width:40px;height:40px;background:rgba(126,184,164,.85);border-radius:50%;display:flex;align-items:center;justify-content:center;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#0d0f14"><path d="M8 5v14l11-7z"/></svg>
-          </div>
-        </div>
+      <div class="ambient-now" id="ambientStatus">● Ambient</div>
+      <!-- Visible player for the sidebar — YT IFrame API controlled -->
+      <div style="width:100%;aspect-ratio:16/9;border-radius:8px;overflow:hidden;margin-bottom:.75rem;background:#000;position:relative;">
+        <div id="ytSidebarPlayer" style="width:100%;height:100%;"></div>
       </div>
-      <!-- Hidden YouTube iframe for audio playback -->
-      <iframe id="ambientIframe"
-        style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;top:-9999px"
-        allow="autoplay; encrypted-media"
-        allowfullscreen>
-      </iframe>
       <div class="ambient-title" id="nowPlayingTitle" style="margin-bottom:.6rem">Loading…</div>
       <div class="waveform" id="waveform"></div>
       <div class="player-controls">
@@ -597,11 +587,11 @@
         <button class="ctrl-btn" id="ambientMuteBtn" onclick="toggleAmbientMute()" title="Mute/Unmute">
           <svg id="volIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
         </button>
+        <button class="ctrl-btn" onclick="sidebarFullscreen()" title="Fullscreen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+        </button>
       </div>
       <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-      <div style="text-align:center;margin-top:.6rem;">
-        <span style="font-size:.7rem;color:var(--muted)">Click thumbnail to open full video</span>
-      </div>
     </div>
     <div class="sidebar-title" style="margin-top:1rem">🔥 Popular Right Now</div>
     <div class="trending-list" id="trendingList"><div class="error-msg">Loading…</div></div>
@@ -613,8 +603,11 @@
     <button class="modal-close" onclick="closeModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
     </button>
-    <div class="modal-video">
-      <iframe id="modalIframe" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    <div class="modal-video" style="position:relative;">
+      <iframe id="modalIframe" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
+      <button onclick="nativeFullscreen('modalIframe')" title="Fullscreen" style="position:absolute;bottom:.6rem;right:.6rem;background:rgba(0,0,0,.6);border:none;border-radius:6px;color:#fff;cursor:pointer;padding:.35rem .5rem;display:flex;align-items:center;z-index:5;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+      </button>
     </div>
     <div class="modal-body">
       <div class="modal-title" id="modalTitle"></div>
@@ -697,8 +690,12 @@ for (let i = 0; i < 28; i++) {
   wf.appendChild(b);
 }
 
-// ── Ambient Player ────────────────────────────────────────
-// Curated long-form ASMR tracks for background listening
+// ── YouTube IFrame API ────────────────────────────────────
+// Load the IFrame API script once
+const ytScript = document.createElement('script');
+ytScript.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(ytScript);
+
 const AMBIENT_TRACKS = [
   { id: 'g7PBHwEBDaM', title: 'Gentle Rain on Forest Leaves — 3 Hours' },
   { id: '1ZYbU82GVz4', title: 'Crackling Fireplace & Snowstorm — 2 Hours' },
@@ -707,53 +704,69 @@ const AMBIENT_TRACKS = [
   { id: 'lTRiuFIWV54', title: 'Deep Forest Ambience — 3 Hours' },
 ];
 
-let ambientIndex = 0;
+let ambientIndex  = 0;
 let ambientPlaying = false;
-let ambientMuted = false;
-let ambientProg = 0;
+let ambientMuted  = false;
+let sidebarPlayer = null; // YT.Player instance for sidebar
+let ytApiReady    = false;
+
+// Called automatically by YT API when ready
+window.onYouTubeIframeAPIReady = function() {
+  ytApiReady = true;
+  sidebarPlayer = new YT.Player('ytSidebarPlayer', {
+    height: '100%', width: '100%',
+    videoId: AMBIENT_TRACKS[ambientIndex].id,
+    playerVars: {
+      autoplay: 1, loop: 1, controls: 1, rel: 0,
+      playlist: AMBIENT_TRACKS[ambientIndex].id,
+      modestbranding: 1,
+    },
+    events: {
+      onReady: (e) => {
+        ambientPlaying = true;
+        updateAmbientUI();
+        document.getElementById('nowPlayingTitle').textContent = AMBIENT_TRACKS[ambientIndex].title;
+        document.getElementById('ambientStatus').textContent = '● Now Playing';
+      },
+      onStateChange: (e) => {
+        ambientPlaying = (e.data === YT.PlayerState.PLAYING);
+        updateAmbientUI();
+      }
+    }
+  });
+};
 
 function loadAmbientTrack(index) {
   const track = AMBIENT_TRACKS[index];
   document.getElementById('nowPlayingTitle').textContent = track.title;
   document.getElementById('ambientStatus').textContent = '● Now Playing';
-
-  // Set thumbnail
-  const img = document.getElementById('ambientThumbImg');
-  img.src = `https://img.youtube.com/vi/${track.id}/mqdefault.jpg`;
-  img.onload = () => { img.style.opacity = 1; };
-
-  // Load iframe with autoplay
-  const iframe = document.getElementById('ambientIframe');
-  iframe.src = `https://www.youtube.com/embed/${track.id}?autoplay=1&mute=0&enablejsapi=1&loop=1&playlist=${track.id}&controls=0`;
-  ambientPlaying = true;
-  updateAmbientUI();
+  if (sidebarPlayer && sidebarPlayer.loadVideoById) {
+    sidebarPlayer.loadVideoById({ videoId: track.id, suggestedQuality: 'default' });
+    ambientPlaying = true;
+    updateAmbientUI();
+  }
 }
 
 function toggleAmbientPlay() {
-  ambientPlaying = !ambientPlaying;
-  const iframe = document.getElementById('ambientIframe');
+  if (!sidebarPlayer) return;
   if (ambientPlaying) {
-    // Reload to resume (simplest cross-browser way)
-    const track = AMBIENT_TRACKS[ambientIndex];
-    iframe.src = `https://www.youtube.com/embed/${track.id}?autoplay=1&mute=${ambientMuted?1:0}&enablejsapi=1&loop=1&playlist=${track.id}&controls=0`;
-    document.getElementById('ambientStatus').textContent = '● Now Playing';
-  } else {
-    iframe.src = '';
+    sidebarPlayer.pauseVideo();
     document.getElementById('ambientStatus').textContent = '● Paused';
+  } else {
+    sidebarPlayer.playVideo();
+    document.getElementById('ambientStatus').textContent = '● Now Playing';
   }
+  ambientPlaying = !ambientPlaying;
   updateAmbientUI();
 }
 
 function toggleAmbientMute() {
+  if (!sidebarPlayer) return;
   ambientMuted = !ambientMuted;
+  ambientMuted ? sidebarPlayer.mute() : sidebarPlayer.unMute();
   document.getElementById('volIcon').innerHTML = ambientMuted
     ? `<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>`
     : `<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>`;
-  // Reload iframe with mute state
-  if (ambientPlaying) {
-    const track = AMBIENT_TRACKS[ambientIndex];
-    document.getElementById('ambientIframe').src = `https://www.youtube.com/embed/${track.id}?autoplay=1&mute=${ambientMuted?1:0}&enablejsapi=1&loop=1&playlist=${track.id}&controls=0`;
-  }
 }
 
 function nextAmbientTrack() {
@@ -766,15 +779,25 @@ function prevAmbientTrack() {
   loadAmbientTrack(ambientIndex);
 }
 
-function cycleAmbientTrack() {
-  // Clicking thumb opens the video in the main modal
-  const track = AMBIENT_TRACKS[ambientIndex];
-  openModal({ id: track.id, title: track.title, channel: 'Ambient ASMR', thumb: `https://img.youtube.com/vi/${track.id}/mqdefault.jpg`, views: '', publishedAt: new Date().toISOString(), description: 'Ambient ASMR background track.', duration: '', likes: '' });
+function sidebarFullscreen() {
+  // Fullscreen the iframe element directly — no reload
+  const iframe = document.querySelector('#ytSidebarPlayer iframe') ||
+                 document.getElementById('ytSidebarPlayer');
+  if (iframe) nativeFullscreen(null, iframe);
+}
+
+// ── Native fullscreen — never reloads the iframe ──────────
+function nativeFullscreen(iframeId, el) {
+  const target = el || document.getElementById(iframeId);
+  if (!target) return;
+  const req = target.requestFullscreen || target.webkitRequestFullscreen ||
+              target.mozRequestFullScreen || target.msRequestFullscreen;
+  if (req) req.call(target);
 }
 
 function updateAmbientUI() {
   const btn = document.getElementById('playBtn');
-  btn.innerHTML = ambientPlaying
+  if (btn) btn.innerHTML = ambientPlaying
     ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>`
     : `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
   document.querySelectorAll('.wave-bar').forEach(b => {
@@ -782,7 +805,15 @@ function updateAmbientUI() {
   });
 }
 
-// Fake progress bar (visual only — YouTube iframe doesn't expose progress without full API)
+function cycleAmbientTrack() {
+  const track = AMBIENT_TRACKS[ambientIndex];
+  openModal({ id: track.id, title: track.title, channel: 'Ambient ASMR',
+    thumb: `https://img.youtube.com/vi/${track.id}/mqdefault.jpg`,
+    views: '', publishedAt: new Date().toISOString(),
+    description: 'Ambient ASMR background track.', duration: '', likes: '' });
+}
+
+// Progress bar (visual only)
 let prog = 0;
 setInterval(() => {
   if (!ambientPlaying) return;
@@ -1056,7 +1087,7 @@ function openModal(v) {
   document.getElementById('miniPlayer').classList.remove('visible');
 
   // Load into main modal
-  document.getElementById('modalIframe').src = `https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0`;
+  document.getElementById('modalIframe').src = `https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0&enablejsapi=1`;
   document.getElementById('modalTitle').textContent = v.title;
   document.getElementById('modalMeta').innerHTML = `
     <span>${v.channel}</span>
@@ -1084,7 +1115,7 @@ function closeModal() {
   // Hand off to mini player so video keeps playing
   if (currentVideo && videoId) {
     const miniIframe = document.getElementById('miniIframe');
-    miniIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+    miniIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`;
     miniIframe.dataset.videoId = videoId;
     document.getElementById('miniTitle').textContent = currentVideo.title || 'Now Playing';
     document.getElementById('miniPlayer').classList.add('visible');
@@ -1179,10 +1210,7 @@ document.getElementById('searchBtn').addEventListener('click', doSearch);
 document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 document.getElementById('loadMoreBtn').addEventListener('click', () => loadGrid(currentQuery, true));
 
-// ── Init — stagger API calls to reduce burst quota usage ──
-// Featured and Grid share similar queries so we load them
-// 800ms apart to avoid hitting rate limits simultaneously.
-// Trending loads last since it's below the fold.
+// Init — stagger API calls to reduce burst quota usage
 (async () => {
   loadFeatured();
   await new Promise(r => setTimeout(r, 800));
@@ -1190,7 +1218,6 @@ document.getElementById('loadMoreBtn').addEventListener('click', () => loadGrid(
   await new Promise(r => setTimeout(r, 800));
   loadTrending();
 })();
-loadAmbientTrack(ambientIndex);
 
 // ── Favorites / Saved ────────────────────────────────────
 let favorites = JSON.parse(localStorage.getItem('calmcanvas_favs') || '[]');
