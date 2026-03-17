@@ -479,25 +479,16 @@
   .legal-body ul { padding-left:1.25rem; margin-bottom:.75rem; }
   .legal-body ul li { margin-bottom:.35rem; }
   .legal-body a { color:var(--accent); }
-  /* ── Mini Player (pip) ── */
-  .mini-player {
-    position:fixed; bottom:1.5rem; right:1.5rem; z-index:250;
-    width:300px; background:var(--surface); border:1px solid var(--border);
-    border-radius:14px; overflow:hidden; box-shadow:0 8px 40px rgba(0,0,0,.6);
-    display:none; flex-direction:column;
-    animation:miniIn .3s cubic-bezier(.34,1.56,.64,1);
-  }
-  .mini-player.visible { display:flex; }
-  @keyframes miniIn { from{transform:translateY(20px) scale(.95);opacity:0} to{transform:translateY(0) scale(1);opacity:1} }
-  .mini-player-video { position:relative; width:100%; aspect-ratio:16/9; background:#000; }
-  .mini-player-video iframe { width:100%; height:100%; border:none; display:block; }
-  .mini-player-bar { display:flex; align-items:center; gap:.5rem; padding:.55rem .75rem; border-top:1px solid var(--border); }
-  .mini-player-title { flex:1; font-size:.74rem; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .mini-player-btn { background:none; border:none; color:var(--text-dim); cursor:pointer; padding:.25rem; border-radius:6px; display:flex; align-items:center; justify-content:center; transition:color .15s, background .15s; flex-shrink:0; }
-  .mini-player-btn:hover { color:var(--text); background:var(--surface2); }
-  .mini-player-btn svg { width:15px; height:15px; }
-  .mini-player-expand { color:var(--accent); }
-  .mini-player-expand:hover { color:var(--accent2); }
+
+  /* ── Sidebar Now Playing — active video state ── */
+  #sidebarPlayerWrap { transition: box-shadow .3s; }
+  #sidebarPlayerWrap.has-video { box-shadow: 0 0 0 2px var(--accent); border-radius:8px; }
+  .sidebar-np-label { font-size:.7rem; color:var(--accent); letter-spacing:.08em; text-transform:uppercase; margin-bottom:.3rem; display:none; }
+  .sidebar-np-label.show { display:block; }
+  .sidebar-np-actions { display:flex; gap:.5rem; margin-top:.5rem; }
+  .sidebar-np-btn { flex:1; display:flex; align-items:center; justify-content:center; gap:.35rem; padding:.4rem; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text-dim); font-family:'DM Sans',sans-serif; font-size:.75rem; cursor:pointer; transition:all .2s; }
+  .sidebar-np-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .sidebar-np-btn svg { width:13px; height:13px; }
 </style>
 </head>
 <body>
@@ -568,11 +559,15 @@
     <div class="sidebar-title">🎵 Now Playing</div>
     <div class="ambient-player">
       <div class="ambient-now" id="ambientStatus">● Ambient</div>
-      <!-- Visible player for the sidebar — YT IFrame API controlled -->
-      <div style="width:100%;aspect-ratio:16/9;border-radius:8px;overflow:hidden;margin-bottom:.75rem;background:#000;position:relative;">
-        <div id="ytSidebarPlayer" style="width:100%;height:100%;"></div>
+      <div id="sidebarPlayerWrap" style="width:100%;aspect-ratio:16/9;border-radius:8px;overflow:hidden;margin-bottom:.75rem;background:#000;position:relative;">
+        <iframe id="sidebarIframe"
+          style="width:100%;height:100%;border:none;display:block;"
+          allow="autoplay; encrypted-media; fullscreen"
+          allowfullscreen>
+        </iframe>
       </div>
-      <div class="ambient-title" id="nowPlayingTitle" style="margin-bottom:.6rem">Loading…</div>
+      <div class="sidebar-np-label" id="sidebarNpLabel">▶ Now playing from library</div>
+      <div class="ambient-title" id="nowPlayingTitle" style="margin-bottom:.4rem">Loading…</div>
       <div class="waveform" id="waveform"></div>
       <div class="player-controls">
         <button class="ctrl-btn" onclick="prevAmbientTrack()" title="Previous">
@@ -592,6 +587,17 @@
         </button>
       </div>
       <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <!-- Actions shown when a user video is in the sidebar -->
+      <div class="sidebar-np-actions" id="sidebarNpActions" style="display:none;">
+        <button class="sidebar-np-btn" onclick="expandSidebarVideo()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Open
+        </button>
+        <button class="sidebar-np-btn" onclick="stopSidebarVideo()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+          Stop
+        </button>
+      </div>
     </div>
     <div class="sidebar-title" style="margin-top:1rem">🔥 Popular Right Now</div>
     <div class="trending-list" id="trendingList"><div class="error-msg">Loading…</div></div>
@@ -635,27 +641,6 @@
   </div>
 </div>
 
-<!-- Mini Player (pip) -->
-<div class="mini-player" id="miniPlayer">
-  <div class="mini-player-video">
-    <iframe id="miniIframe" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-  </div>
-  <div class="mini-player-bar">
-    <span class="mini-player-title" id="miniTitle">Now Playing</span>
-    <button class="mini-player-btn mini-player-expand" onclick="expandMiniPlayer()" title="Expand">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
-        <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
-      </svg>
-    </button>
-    <button class="mini-player-btn" onclick="closeMiniPlayer()" title="Close">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-    </button>
-  </div>
-</div>
-
 <footer>
   <a class="logo" href="#"><span class="logo-main">CalmCanvas</span><span class="logo-sub">ASMR</span></a>
   <div class="footer-links">
@@ -690,11 +675,11 @@ for (let i = 0; i < 28; i++) {
   wf.appendChild(b);
 }
 
-// ── YouTube IFrame API ────────────────────────────────────
-// Load the IFrame API script once
-const ytScript = document.createElement('script');
-ytScript.src = 'https://www.youtube.com/iframe_api';
-document.head.appendChild(ytScript);
+// ── Unified Sidebar Player ────────────────────────────────
+// One iframe lives in the sidebar at all times.
+// Ambient tracks play by default; any user video replaces them.
+// closeModal() hands the video to the sidebar — no src swap, no reset.
+// Fullscreen uses requestFullscreen() on the existing iframe element.
 
 const AMBIENT_TRACKS = [
   { id: 'g7PBHwEBDaM', title: 'Gentle Rain on Forest Leaves — 3 Hours' },
@@ -704,95 +689,140 @@ const AMBIENT_TRACKS = [
   { id: 'lTRiuFIWV54', title: 'Deep Forest Ambience — 3 Hours' },
 ];
 
-let ambientIndex  = 0;
-let ambientPlaying = false;
-let ambientMuted  = false;
-let sidebarPlayer = null; // YT.Player instance for sidebar
-let ytApiReady    = false;
+let ambientIndex   = 0;
+let ambientPlaying = true;
+let ambientMuted   = false;
+let sidebarMode    = 'ambient'; // 'ambient' | 'video'
+let sidebarVideo   = null;      // current user video object in sidebar
 
-// Called automatically by YT API when ready
-window.onYouTubeIframeAPIReady = function() {
-  ytApiReady = true;
-  sidebarPlayer = new YT.Player('ytSidebarPlayer', {
-    height: '100%', width: '100%',
-    videoId: AMBIENT_TRACKS[ambientIndex].id,
-    playerVars: {
-      autoplay: 1, loop: 1, controls: 1, rel: 0,
-      playlist: AMBIENT_TRACKS[ambientIndex].id,
-      modestbranding: 1,
-    },
-    events: {
-      onReady: (e) => {
-        ambientPlaying = true;
-        updateAmbientUI();
-        document.getElementById('nowPlayingTitle').textContent = AMBIENT_TRACKS[ambientIndex].title;
-        document.getElementById('ambientStatus').textContent = '● Now Playing';
-      },
-      onStateChange: (e) => {
-        ambientPlaying = (e.data === YT.PlayerState.PLAYING);
-        updateAmbientUI();
-      }
-    }
-  });
-};
+function getSidebarIframe() {
+  return document.getElementById('sidebarIframe');
+}
+
+// Load a URL into the sidebar iframe
+function setSidebarSrc(src) {
+  const f = getSidebarIframe();
+  f.src = src;
+}
 
 function loadAmbientTrack(index) {
   const track = AMBIENT_TRACKS[index];
+  sidebarMode = 'ambient';
+  sidebarVideo = null;
+  setSidebarSrc(`https://www.youtube.com/embed/${track.id}?autoplay=1&loop=1&playlist=${track.id}&rel=0&modestbranding=1`);
   document.getElementById('nowPlayingTitle').textContent = track.title;
+  document.getElementById('ambientStatus').textContent = '● Ambient';
+  document.getElementById('sidebarNpLabel').classList.remove('show');
+  document.getElementById('sidebarNpActions').style.display = 'none';
+  document.getElementById('sidebarPlayerWrap').classList.remove('has-video');
+  ambientPlaying = true;
+  updateAmbientUI();
+}
+
+// Called by closeModal() — moves the current video into the sidebar seamlessly
+function sendVideoToSidebar(v, videoId) {
+  sidebarMode = 'video';
+  sidebarVideo = v;
+  // Set src ONCE — this is the only time we set it; fullscreen never changes src
+  setSidebarSrc(`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`);
+  document.getElementById('nowPlayingTitle').textContent = v.title || 'Now Playing';
   document.getElementById('ambientStatus').textContent = '● Now Playing';
-  if (sidebarPlayer && sidebarPlayer.loadVideoById) {
-    sidebarPlayer.loadVideoById({ videoId: track.id, suggestedQuality: 'default' });
-    ambientPlaying = true;
-    updateAmbientUI();
-  }
+  document.getElementById('sidebarNpLabel').classList.add('show');
+  document.getElementById('sidebarNpActions').style.display = 'flex';
+  document.getElementById('sidebarPlayerWrap').classList.add('has-video');
+  ambientPlaying = true;
+  updateAmbientUI();
+}
+
+function stopSidebarVideo() {
+  sidebarVideo = null;
+  loadAmbientTrack(ambientIndex);
+}
+
+function expandSidebarVideo() {
+  if (!sidebarVideo) return;
+  // Open the modal — but DON'T reload the sidebar iframe
+  const v = sidebarVideo;
+  document.getElementById('modalIframe').src = `https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0`;
+  document.getElementById('modalTitle').textContent = v.title;
+  document.getElementById('modalMeta').innerHTML = `
+    <span>${v.channel}</span><span>${v.views} views</span>
+    ${v.duration ? `<span>${v.duration}</span>` : ''}
+    <span>${timeAgo(v.publishedAt)}</span>`;
+  document.getElementById('modalDesc').textContent = v.description || '';
+  document.getElementById('ytLink').href = `https://www.youtube.com/watch?v=${v.id}`;
+  currentVideo = v;
+  currentVideoId = v.id;
+  currentLiked = false;
+  document.getElementById('likeBtn').classList.remove('liked');
+  updateSaveBtn();
+  document.getElementById('modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
 
 function toggleAmbientPlay() {
-  if (!sidebarPlayer) return;
-  if (ambientPlaying) {
-    sidebarPlayer.pauseVideo();
-    document.getElementById('ambientStatus').textContent = '● Paused';
-  } else {
-    sidebarPlayer.playVideo();
-    document.getElementById('ambientStatus').textContent = '● Now Playing';
-  }
+  // postMessage to pause/play the iframe without touching src
+  const f = getSidebarIframe();
+  try {
+    if (ambientPlaying) {
+      f.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+      document.getElementById('ambientStatus').textContent = '● Paused';
+    } else {
+      f.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+      document.getElementById('ambientStatus').textContent = sidebarMode === 'video' ? '● Now Playing' : '● Ambient';
+    }
+  } catch(e) {}
   ambientPlaying = !ambientPlaying;
   updateAmbientUI();
 }
 
 function toggleAmbientMute() {
-  if (!sidebarPlayer) return;
   ambientMuted = !ambientMuted;
-  ambientMuted ? sidebarPlayer.mute() : sidebarPlayer.unMute();
+  const f = getSidebarIframe();
+  try {
+    f.contentWindow.postMessage(
+      ambientMuted
+        ? '{"event":"command","func":"mute","args":""}'
+        : '{"event":"command","func":"unMute","args":""}',
+      '*'
+    );
+  } catch(e) {}
   document.getElementById('volIcon').innerHTML = ambientMuted
     ? `<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>`
     : `<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>`;
 }
 
 function nextAmbientTrack() {
+  if (sidebarMode === 'video') { stopSidebarVideo(); return; }
   ambientIndex = (ambientIndex + 1) % AMBIENT_TRACKS.length;
   loadAmbientTrack(ambientIndex);
 }
 
 function prevAmbientTrack() {
+  if (sidebarMode === 'video') { stopSidebarVideo(); return; }
   ambientIndex = (ambientIndex - 1 + AMBIENT_TRACKS.length) % AMBIENT_TRACKS.length;
   loadAmbientTrack(ambientIndex);
 }
 
+// Fullscreen the sidebar iframe — NEVER changes src, video keeps playing
 function sidebarFullscreen() {
-  // Fullscreen the iframe element directly — no reload
-  const iframe = document.querySelector('#ytSidebarPlayer iframe') ||
-                 document.getElementById('ytSidebarPlayer');
-  if (iframe) nativeFullscreen(null, iframe);
+  const f = getSidebarIframe();
+  const req = f.requestFullscreen || f.webkitRequestFullscreen ||
+              f.mozRequestFullScreen || f.msRequestFullscreen;
+  if (req) req.call(f);
 }
 
-// ── Native fullscreen — never reloads the iframe ──────────
-function nativeFullscreen(iframeId, el) {
-  const target = el || document.getElementById(iframeId);
-  if (!target) return;
-  const req = target.requestFullscreen || target.webkitRequestFullscreen ||
-              target.mozRequestFullScreen || target.msRequestFullscreen;
-  if (req) req.call(target);
+// Fullscreen the modal iframe — NEVER changes src
+function nativeFullscreen(iframeId) {
+  const f = document.getElementById(iframeId);
+  if (!f) return;
+  const req = f.requestFullscreen || f.webkitRequestFullscreen ||
+              f.mozRequestFullScreen || f.msRequestFullscreen;
+  if (req) req.call(f);
+}
+
+function cycleAmbientTrack() {
+  nextAmbientTrack();
 }
 
 function updateAmbientUI() {
@@ -805,21 +835,16 @@ function updateAmbientUI() {
   });
 }
 
-function cycleAmbientTrack() {
-  const track = AMBIENT_TRACKS[ambientIndex];
-  openModal({ id: track.id, title: track.title, channel: 'Ambient ASMR',
-    thumb: `https://img.youtube.com/vi/${track.id}/mqdefault.jpg`,
-    views: '', publishedAt: new Date().toISOString(),
-    description: 'Ambient ASMR background track.', duration: '', likes: '' });
-}
-
-// Progress bar (visual only)
+// Progress bar (visual)
 let prog = 0;
 setInterval(() => {
   if (!ambientPlaying) return;
   prog = (prog + 0.015) % 100;
   document.getElementById('progressFill').style.width = prog + '%';
 }, 300);
+
+// Start ambient on load
+loadAmbientTrack(ambientIndex);
 
 function fmtNum(n) {
   n = parseInt(n) || 0;
@@ -1021,73 +1046,10 @@ async function loadTrending() {
   }
 }
 
-// ── Mini Player ───────────────────────────────────────────
-let miniPlayerVideo = null; // currently playing video object
-
-function showMiniPlayer(v) {
-  miniPlayerVideo = v;
-  const iframe = document.getElementById('miniIframe');
-  // Only reload if it's a different video
-  if (iframe.dataset.videoId !== v.id) {
-    iframe.src = `https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0`;
-    iframe.dataset.videoId = v.id;
-  }
-  document.getElementById('miniTitle').textContent = v.title || 'Now Playing';
-  document.getElementById('miniPlayer').classList.add('visible');
-}
-
-function closeMiniPlayer() {
-  document.getElementById('miniIframe').src = '';
-  document.getElementById('miniIframe').dataset.videoId = '';
-  document.getElementById('miniPlayer').classList.remove('visible');
-  miniPlayerVideo = null;
-}
-
-function expandMiniPlayer() {
-  if (!miniPlayerVideo) return;
-  // Move video back into the full modal without reloading the iframe
-  const miniIframe = document.getElementById('miniIframe');
-  const modalIframe = document.getElementById('modalIframe');
-  modalIframe.src = miniIframe.src;
-  modalIframe.dataset.videoId = miniIframe.dataset.videoId;
-  document.getElementById('miniPlayer').classList.remove('visible');
-  // Populate modal info
-  const v = miniPlayerVideo;
-  document.getElementById('modalTitle').textContent = v.title;
-  document.getElementById('modalMeta').innerHTML = `
-    <span>${v.channel}</span>
-    <span>${v.views} views</span>
-    ${v.duration ? `<span>${v.duration}</span>` : ''}
-    <span>${timeAgo(v.publishedAt)}</span>`;
-  document.getElementById('modalDesc').textContent = v.description || 'No description available.';
-  document.getElementById('ytLink').href = `https://www.youtube.com/watch?v=${v.id}`;
-  currentVideo = v;
-  currentVideoId = v.id;
-  currentLiked = false;
-  document.getElementById('likeBtn').classList.remove('liked');
-  updateSaveBtn();
-  document.getElementById('modal').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
 function openModal(v) {
   currentVideo = v;
   currentVideoId = v.id;
-
-  // If mini player is showing the same video, just expand it
-  if (miniPlayerVideo && miniPlayerVideo.id === v.id) {
-    expandMiniPlayer();
-    return;
-  }
-
-  // Stop mini player if a different video is opening in full
-  const miniIframe = document.getElementById('miniIframe');
-  miniIframe.src = '';
-  miniIframe.dataset.videoId = '';
-  document.getElementById('miniPlayer').classList.remove('visible');
-
-  // Load into main modal
-  document.getElementById('modalIframe').src = `https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0&enablejsapi=1`;
+  document.getElementById('modalIframe').src = `https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0`;
   document.getElementById('modalTitle').textContent = v.title;
   document.getElementById('modalMeta').innerHTML = `
     <span>${v.channel}</span>
@@ -1105,25 +1067,18 @@ function openModal(v) {
 window.openModal = openModal;
 
 function closeModal() {
-  const modalIframe = document.getElementById('modalIframe');
+  const v = currentVideo;
   const videoId = currentVideoId;
 
-  // Close the modal overlay
+  // Close modal
   document.getElementById('modal').classList.remove('open');
   document.body.style.overflow = '';
+  document.getElementById('modalIframe').src = '';
 
-  // Hand off to mini player so video keeps playing
-  if (currentVideo && videoId) {
-    const miniIframe = document.getElementById('miniIframe');
-    miniIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`;
-    miniIframe.dataset.videoId = videoId;
-    document.getElementById('miniTitle').textContent = currentVideo.title || 'Now Playing';
-    document.getElementById('miniPlayer').classList.add('visible');
-    miniPlayerVideo = currentVideo;
+  // Hand off to sidebar — video loads fresh there and keeps playing
+  if (v && videoId) {
+    sendVideoToSidebar(v, videoId);
   }
-
-  // Clear main modal iframe to stop its audio
-  modalIframe.src = '';
 }
 window.closeModal = closeModal;
 
@@ -1415,7 +1370,7 @@ function startSleepTimer() {
       fade.style.opacity = 1;
       fade.style.pointerEvents = 'all';
       document.getElementById('modalIframe').src = '';
-      closeMiniPlayer();
+      stopSidebarVideo();
       updateNavBtn(0);
       closeSleepTimer();
       showToast('😴 Sweet dreams! Timer ended.');
