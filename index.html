@@ -192,8 +192,8 @@
   @keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(14px)}to{opacity:1;transform:scale(1) translateY(0)}}
   .modal-video{aspect-ratio:16/9;background:#000;border-radius:12px 12px 0 0;overflow:hidden;}
   .modal-video iframe{width:100%;height:100%;border:none;display:block;}
-  .modal-close{position:absolute;top:.75rem;right:.75rem;width:30px;height:30px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.08);border-radius:50%;color:rgba(255,255,255,.75);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;z-index:10;}
-  .modal-close:hover{background:rgba(0,0,0,.95);color:#fff;}
+  .modal-close{width:30px;height:30px;background:var(--surface2);border:1px solid var(--border2);border-radius:50%;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+  .modal-close:hover{background:var(--surface3);color:var(--text);}
   .modal-close svg{width:13px;height:13px;}
   .modal-body{padding:1.1rem 1.35rem 1.4rem;}
   .modal-title{font-family:'Cormorant Garamond',serif;font-size:1.25rem;font-weight:400;color:var(--text);margin-bottom:.35rem;line-height:1.3;}
@@ -513,24 +513,27 @@
 
 <div class="modal-overlay" id="modal">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-    </button>
-    <!-- No overlays allowed on YouTube embedded player per YouTube ToS III.C.1 -->
+    <!-- Close button moved outside and below the video — no overlays on YouTube player per ToS III.C.1 -->
     <div class="modal-video">
       <iframe id="modalIframe" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
     </div>
     <div class="modal-body">
-      <div class="modal-title" id="modalTitle"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;margin-bottom:.35rem;">
+        <div class="modal-title" id="modalTitle" style="flex:1;"></div>
+        <button class="modal-close" onclick="closeModal()" style="position:static;flex-shrink:0;margin-top:.15rem;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
       <div class="modal-meta" id="modalMeta"></div>
       <div class="modal-actions">
         <button class="action-btn" id="likeBtn" onclick="toggleLike()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           Like
         </button>
-        <!-- Official YouTube branded button per YouTube ToS III.F.2a,b -->
+        <!-- Official YouTube branded button — icon minimum 20px per ToS III.F.2a,b -->
         <a id="ytLink" href="#" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.5rem;background:#ff0000;color:#fff;border:none;border-radius:4px;padding:.45rem 1rem;font-family:'YouTube Sans','Roboto',sans-serif;font-size:.85rem;font-weight:700;text-decoration:none;letter-spacing:.01em;transition:background .2s;" onmouseover="this.style.background='#cc0000'" onmouseout="this.style.background='#ff0000'">
-          <svg height="14" viewBox="0 0 28 20" fill="white"><path d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.8 0 14 0 14 0S5.2 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.2 0 10 0 10s0 4.8.6 6.9a3.5 3.5 0 0 0 2.5 2.5C5.2 20 14 20 14 20s8.8 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5C28 14.8 28 10 28 10s0-4.8-.6-6.9z"/><path fill="#ff0000" d="M11 14.3V5.7l7.3 4.3z"/></svg>
+          <!-- YouTube icon: unmodified, minimum 20px height per ToS III.F.2a,b -->
+          <svg height="20" viewBox="0 0 28 20" fill="white" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;"><path d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.8 0 14 0 14 0S5.2 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.2 0 10 0 10s0 4.8.6 6.9a3.5 3.5 0 0 0 2.5 2.5C5.2 20 14 20 14 20s8.8 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5C28 14.8 28 10 28 10s0-4.8-.6-6.9z"/><path fill="#ff0000" d="M11 14.3V5.7l7.3 4.3z"/></svg>
           Watch on YouTube
         </a>
         <button class="action-btn" onclick="openShareSheet()">
